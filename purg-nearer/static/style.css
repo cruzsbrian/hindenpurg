@@ -8,7 +8,7 @@ h1 {
     font-weight: lighter;
     font-size: 4em;
     text-align: center;
-    margin: 10%;
+    margin: 5%;
 }
 
 form {
@@ -20,7 +20,8 @@ input {
     border-bottom: 2px solid;
     background: transparent;
     height: 2em;
-    width: 40%;
+    max-width: 80%;
+    width: 30em;
 }
 
 button {
