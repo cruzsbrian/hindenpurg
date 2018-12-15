@@ -26,18 +26,57 @@ class DownloadLogCatcher:
 
 # data structure for song queue
 class Song:
-    def __init__(c, t, l):
+    def __init__(self, c, t, l):
         self.code = c
         self.title = t
         self.length = l
 
 
-# handles playing the songs in the right order and automatically progressing
-# from one to the next
-class Player():
+class Downloader:
+    def __init__(self, newSongCallback):
+        self.downloadQueue = []
+        self.downloadThread = threading.Thread(target=self.downloadAll)
+
+        self.newSongCallback = newSongCallback
+
+        # options for youtube downloader
+        self.ydlOpts = {
+            'format': 'bestaudio/best',
+            'logger': DownloadLogCatcher(),     # so debug msgs aren't printed
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+        }
+
+    def addSong(self, code):
+        self.downloadQueue.append(code)
+
+        if not self.downloadThread.isAlive():
+            self.downloadThread = threading.Thread(target=self.downloadAll)
+            self.downloadThread.start()
+
+    def downloadAll(self):
+        while len(self.downloadQueue) > 0:
+            code = self.downloadQueue.pop()
+
+            # set the right output filename
+            self.ydlOpts['outtmpl'] = 'tmp/' + code + '.mp3'
+
+            # make a downloader with those options
+            ydl = youtube_dl.YoutubeDL(self.ydlOpts)
+
+            ydl.download([code])
+
+            self.newSongCallback(code)
+
+
+class Player:
     def __init__(self):
-        self.songId = 0
         self.resetAudio()
+
+        self.downloader = Downloader(self.newSong)
 
         self.queue = []
         self.paused = False
@@ -52,30 +91,31 @@ class Player():
         self.audioThread = threading.Thread(target=Gtk.main)
         self.audioThread.start()
 
-    # advance to next song. player argument is passed by gst in the callback
     def next(self, player=None):
-        if self.getSongPath():
+        if len(self.queue) > 0:
             # delete old song
-            subprocess.call(['rm', 'tmp/' + str(self.songId) + '.mp3'])
+            subprocess.call(['rm', self.getSongPath(self.queue[0])])
 
-            self.songId += 1
+            # remove song from queue
+            self.queue.pop(0)
 
+            # play next song
             if not self.paused:
                 self.play()
+
         else:
             # for some reason if the songs ever stop the thing needs to be reset
             # before the next one
             self.resetAudio()
 
-    # updates the uri of the player to the current song (does not advance the
-    # song)
     def play(self):
-        songPath = self.getSongPath()
+        if len(self.queue) > 0:
+            songPath = self.getSongPath(self.queue[0])
 
-        if songPath:
-            uri = 'file://' + songPath
-            self.player.set_property('uri', uri)
-            self.player.set_state(Gst.State.PLAYING)
+            if songPath:
+                uri = 'file://' + songPath
+                self.player.set_property('uri', uri)
+                self.player.set_state(Gst.State.PLAYING)
 
         self.paused = False
 
@@ -89,77 +129,25 @@ class Player():
         self.player.set_state(Gst.State.PAUSED)
         self.paused = True
 
-    # returns the full path of the current song, None if it doesn't exist
-    def getSongPath(self):
-        filename = 'tmp/' + str(self.songId) + '.mp3'
+    def getSongPath(self, song):
+        filename = 'tmp/' + str(song.code) + '.mp3'
         if os.path.isfile(filename):
             return os.path.realpath(filename)
 
+    def newSong(self, code):
+        song = Song(code, '', 0)    # will become song = lookUpSong(code)
+        self.queue.append(song)
 
-# handles downloading and playing songs
-class DownloadPlayer:
-    def __init__(self):
-        self.songId = 0
-        self.downloadQueue = []
+        if not self.paused:
+            self.play()
 
-        # options for youtube downloader
-        self.ydlOpts = {
-            'format': 'bestaudio/best',
-            'logger': DownloadLogCatcher(),     # so debug msgs aren't printed
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '320',
-            }],
-        }
-
-        self.downloadThread = threading.Thread(target=self.downloadAll)
-
-        self.player = Player()
-
-    def addSong(self, url):
-        self.downloadQueue.append(url)
-
-        # make a new downloadThread if the old one finished
-        if not self.downloadThread.isAlive():
-            self.downloadThread = threading.Thread(target=self.downloadAll)
-            self.downloadThread.start()
-
-    def skip(self):
-        self.player.skip()
-
-    def pause(self):
-        self.player.pause()
-
-    def play(self):
-        self.player.play()
-
-    def isPaused(self):
-        return self.player.paused
-
-    def getQueue(self):
-        return self.player.queue
-
-    def downloadAll(self):
-        while len(self.downloadQueue) > 0:
-            # set the right output filename
-            self.ydlOpts['outtmpl'] = 'tmp/' + str(self.songId) + '.mp3'
-            self.songId += 1
-
-            # make a downloader with those options
-            ydl = youtube_dl.YoutubeDL(self.ydlOpts)
-
-            url = self.downloadQueue.pop()
-            ydl.download([url])
-
-            # start the player in case it had run out of songs
-            if not self.player.paused:
-                self.player.play()
+    def addSong(self, code):
+        self.downloader.addSong(code)
 
 
 if __name__ == '__main__':
-    d = DownloadPlayer()
+    p = Player()
 
     while True:
-        nextUrl = input('YouTube url: ')
-        d.addSong(nextUrl)
+        nextUrl = input('YouTube code: ')
+        p.addSong(nextUrl)

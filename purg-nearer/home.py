@@ -9,7 +9,7 @@ from . import queuedPlayer
 
 bp = Blueprint('home', __name__)
 
-player = queuedPlayer.DownloadPlayer()
+player = queuedPlayer.Player()
 
 @bp.route('/', methods=('GET', 'POST'))
 def index():
@@ -23,7 +23,7 @@ def index():
         return redirect(url_for('home.index'))
 
     return render_template('index.html',
-            paused=player.isPaused(), queue=player.getQueue())
+            paused=player.paused, queue=player.queue)
 
 @bp.route('/pause', methods=('GET', 'POST'))
 def pause():
