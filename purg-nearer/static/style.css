@@ -1,0 +1,31 @@
+* {
+    background: black;
+    color: #aaa;
+    font-family: Monospace;
+}
+
+form {
+    text-align: center;
+    margin-top: 15%;
+}
+
+input {
+    border: none;
+    border-bottom: 2px solid;
+    background: transparent;
+    font-family: Sans Serif;
+    height: 2em;
+    width: 40%;
+}
+
+button {
+    background: #333;
+    border: 1px solid #555;
+    margin: 0.5em;
+    padding: 0.4em 1em 0.3em 1em;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #444;
+}

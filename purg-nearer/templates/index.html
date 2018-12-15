@@ -1,0 +1,14 @@
+<!doctype html>
+<title>Purg Nearer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<form method="post">
+    <input type="text" name="url" autofocus autocomplete="off">
+    <br><br>
+    <button type="submit" style="display: none"></button>
+    {% if paused %}
+        <button type="submit" formaction="play">PLAY</button>
+    {% else %}
+        <button type="submit" formaction="pause">PAUSE</button>
+    {% endif %}
+    <button type="submit" formaction="skip">SKIP</button>
+</form>
