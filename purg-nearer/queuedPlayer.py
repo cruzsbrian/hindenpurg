@@ -12,6 +12,9 @@ from gi.repository import Gst, Gtk, GObject
 import youtube_dl
 
 
+PREDOWNLOAD_BUFFER = 5
+
+
 # intercepts the logs from youtube_dl, only lets warning and error through
 class DownloadLogCatcher:
     def debug(self, msg):
@@ -26,10 +29,11 @@ class DownloadLogCatcher:
 
 # data structure for song queue
 class Song:
-    def __init__(self, c, t, l):
+    def __init__(self, c, t, l, i):
         self.code = c
         self.title = t
         self.length = l
+        self.id = i
 
 
 class Downloader:
@@ -50,8 +54,8 @@ class Downloader:
             }],
         }
 
-    def addSong(self, code):
-        self.downloadQueue.append(code)
+    def addSong(self, song):
+        self.downloadQueue.append(song)
 
         if not self.downloadThread.isAlive():
             self.downloadThread = threading.Thread(target=self.downloadAll)
@@ -59,27 +63,29 @@ class Downloader:
 
     def downloadAll(self):
         while len(self.downloadQueue) > 0:
-            code = self.downloadQueue.pop()
+            song = self.downloadQueue.pop()
 
             # set the right output filename
-            self.ydlOpts['outtmpl'] = 'tmp/' + code + '.mp3'
+            self.ydlOpts['outtmpl'] = getSongPath(song)
 
             # make a downloader with those options
             ydl = youtube_dl.YoutubeDL(self.ydlOpts)
 
-            ydl.download([code])
+            ydl.download([song.code])
 
-            self.newSongCallback(code)
+            self.newSongCallback()
 
 
 class Player:
     def __init__(self):
         self.resetAudio()
 
-        self.downloader = Downloader(self.newSong)
+        self.downloader = Downloader(self.newSongDownloaded)
 
         self.queue = []
         self.paused = False
+
+        self.nextSongId = 0
 
     # everything involved with actually playing the audio
     def resetAudio(self):
@@ -94,7 +100,10 @@ class Player:
     def next(self, player=None):
         if len(self.queue) > 0:
             # delete old song
-            subprocess.call(['rm', self.getSongPath(self.queue[0])])
+            subprocess.call(['rm', getSongPath(self.queue[0])])
+
+            if len(self.queue) > PREDOWNLOAD_BUFFER:
+                self.downloader.addSong(self.queue[PREDOWNLOAD_BUFFER].code)
 
             # remove song from queue
             self.queue.pop(0)
@@ -110,10 +119,8 @@ class Player:
 
     def play(self):
         if len(self.queue) > 0:
-            songPath = self.getSongPath(self.queue[0])
-
-            if songPath:
-                uri = 'file://' + songPath
+            if songExists(self.queue[0]):
+                uri = 'file://' + getSongPath(self.queue[0])
                 self.player.set_property('uri', uri)
                 self.player.set_state(Gst.State.PLAYING)
 
@@ -129,20 +136,34 @@ class Player:
         self.player.set_state(Gst.State.PAUSED)
         self.paused = True
 
-    def getSongPath(self, song):
-        filename = 'tmp/' + str(song.code) + '.mp3'
-        if os.path.isfile(filename):
-            return os.path.realpath(filename)
-
-    def newSong(self, code):
-        song = Song(code, '', 0)    # will become song = lookUpSong(code)
-        self.queue.append(song)
-
+    def newSongDownloaded(self):
         if not self.paused:
             self.play()
 
     def addSong(self, code):
-        self.downloader.addSong(code)
+        # each downloaded file gets a unique id so that repeat songs work
+        # there are PREDOWNLOAD_BUFFER files at a time, so we need
+        # PREDOWNLOAD_BUFFER ids
+        song_id = self.nextSongId
+
+        self.nextSongId += 1
+        if self.nextSongId == PREDOWNLOAD_BUFFER:
+            self.nextSongId = 0
+
+        song = Song(code, '', 0, song_id) # will become song = lookUpSong(code)
+
+        if len(self.queue) < PREDOWNLOAD_BUFFER:
+            self.downloader.addSong(song)
+
+        self.queue.append(song)
+
+
+def getSongPath(song):
+    filename = 'tmp/' + str(song.code) + '-' + str(song.id) + '.mp3'
+    return os.path.realpath(filename)
+
+def songExists(song):
+    return os.path.isfile(getSongPath(song))
 
 
 if __name__ == '__main__':
