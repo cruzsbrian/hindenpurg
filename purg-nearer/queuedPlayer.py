@@ -150,7 +150,8 @@ class Player:
         if self.nextSongId == PREDOWNLOAD_BUFFER:
             self.nextSongId = 0
 
-        song = Song(code, '', 0, song_id) # will become song = lookUpSong(code)
+        # will become song = lookUpSong(code)
+        song = Song(code, code, 0, song_id)
 
         if len(self.queue) < PREDOWNLOAD_BUFFER:
             self.downloader.addSong(song)

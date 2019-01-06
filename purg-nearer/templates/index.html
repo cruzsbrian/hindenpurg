@@ -7,9 +7,28 @@
     <br><br>
     <button type="submit" style="display: none"></button>
     {% if paused %}
-    <button type="submit" formaction="play">PLAY</button>
+        <button type="submit" formaction="play">PLAY</button>
     {% else %}
-    <button type="submit" formaction="pause">PAUSE</button>
+        <button type="submit" formaction="pause">PAUSE</button>
     {% endif %}
     <button type="submit" formaction="skip">SKIP</button>
 </form>
+<div id="queue">
+    {% if queue|length > 0 %}
+        <h3>Currently Playing</h3>
+    {% endif %}
+    {% for song in queue %}
+        <div class="song">
+            <span class="title">
+                <a href="{{ 'https://youtu.be/' + song.code }}">
+                    {{ song.title }}
+                </a>
+            </span>
+
+            <span class="length">{{ song.length }}</span>
+        </div>
+        {% if loop.first and queue|length > 1 %}
+            <h3>Next Up</h3>
+        {% endif %}
+    {% endfor %}
+</div>
